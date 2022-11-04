@@ -16,6 +16,7 @@ from requests.utils import dict_from_cookiejar
 from utils.functions import Logger
 from utils.functions import pretty_print, sort_missions, get_enc_time, show_progress, save_users
 
+from urllib.parse import urlencode
 
 class Chaoxing:
     def __init__(self, usernm, passwd, debug, show):
@@ -109,7 +110,7 @@ class Chaoxing:
         self.logger.debug("---selected_course info end---")
         return True
 
-    def get_selected_course_data(self):
+    def get_selected_course_data(self): 
         url = 'https://mooc1-api.chaoxing.com/gas/clazz'
         params = {
             'id': self.selected_course["key"],
@@ -133,17 +134,38 @@ class Chaoxing:
         }
         return self.session.get(url, params=params).json()
 
-    def get_knowledge(self, clazzid, courseid, knowledgeid, num):
+    def get_knowledge(self, clazzid, courseid, knowledgeid, cpi):
         url = 'https://mooc1-api.chaoxing.com/knowledge/cards'
         params = {
             'clazzid': clazzid,
             'courseid': courseid,
             'knowledgeid': knowledgeid,
-            'num': num,
-            'isPhone': 1,
-            'control': True,
+            'num': 0,
+            # 'isPhone': 1,
+            'ut':'s',
+            'cpi':cpi,
+            'v':'20160407-1'
+            # 'control': True,
         }
         return self.session.get(url, params=params).text
+
+    def get_studyajax(self,courseid,clazzid,chapterid,cpi):
+        url='https://mooc1.chaoxing.com/mycourse/studentstudyAjax'
+        params = {
+            'courseId':courseid,
+            'clazzid':clazzid,
+            'chapterId':chapterid,
+            'cpi':cpi
+        }
+        text = self.session.post(url,data=urlencode(params),headers={'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}).text
+        if res := re.search(r'scrolling=\"no\"\ src=\"(\/knowledge\/cards\?.*20160407\-1)\"', str(text)):
+            self.logger.debug("---studyajax info begin---")
+            self.logger.debug(res[1])
+            self.logger.debug("---studyajax info end---")
+            return True
+        else:
+            self.logger.debug("---studyajax info faild---")
+            return False
 
     def get_attachments(self, text):
         if res := re.search(r'window\.AttachmentSetting =({\"attachments\":.*})', text):
@@ -151,7 +173,12 @@ class Chaoxing:
             self.logger.debug("---attachments info begin---")
             self.logger.debug(attachments)
             self.logger.debug("---attachments info end---")
-            return attachments
+        elif res := re.search(r'mArg = ({\"attachments\":.*})', text):
+            attachments = json.loads(res[1])
+            self.logger.debug("---attachments info begin---")
+            self.logger.debug(attachments)
+            self.logger.debug("---attachments info end---")
+        return attachments
 
     def get_d_token(self, objectid, fid):
         url = 'https://mooc1-api.chaoxing.com/ananas/status/{}'.format(objectid)
@@ -262,3 +289,24 @@ class Chaoxing:
             playingTime += 1 * self.speed
             sec += 1 * self.speed
             time.sleep(1)
+    
+    def pass_document(self, jtoken, clazzid, jobid, courseid, knowledgeid):#暂时未使用，可能不可用或无用
+        url = 'http://mooc1.chaoxing.com/ananas/job/document'
+        params = {
+            'jobid': jobid,
+            'knowledgeid': knowledgeid,
+            'courseid': courseid,
+            'clazzid': clazzid,
+            'jtoken': jtoken,
+            '_dc': int(round(time.time() * 1000))
+        }
+        tmp_response = self.session.get(url, params=params)
+        try:
+            result = tmp_response.json()
+        except Exception:
+            self.logger.debug("任务失败")
+            result = {'error': {'status_code': tmp_response.status_code, 'text': tmp_response.text}}
+        if result['status'] == 'true':
+            return True
+        else:
+            return False
