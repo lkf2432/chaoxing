@@ -8,7 +8,8 @@ from os import mkdir
 from os.path import exists
 import random
 from natsort import natsorted
-
+import requests
+from urllib.parse import quote
 
 def title_show(logo):
     if logo:
@@ -180,6 +181,26 @@ def pretty_print(courses_raw: list):
     for row in data:
         print(format_row.format("", *row))
     print("-" * 100)
+
+def pretty_print2(missions: list):
+    titles = ["序号", "任务点状态", "    ", "章节名称"]
+    data = list()
+    for mission_index, mission in enumerate(missions):
+        # if "status" in mission["content"]:
+        data.append([str(mission_index + 1), str(mission['status']), "    ", str(mission['label']+' '+mission["name"])])
+    format_row = "{:>16}" * (len(titles) + 1)
+    print("-"*100)
+    print(format_row.format("", *titles))
+    for row in data:
+        print(format_row.format("", *row))
+    print("-" * 100)
+
+
+def send_notice(channel: str, token: str):
+    if channel == 'bark':
+        requests.get(
+            token + '/' + quote('刷课通知/刷到测验了，快来手动完成！'),
+            headers={"User-Agent": 'chrome'})
 
 
 def sort_missions(missions):

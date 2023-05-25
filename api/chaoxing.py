@@ -12,10 +12,11 @@ import binascii
 import requests
 from requests.utils import dict_from_cookiejar
 
-from utils.functions import Logger
+from utils.functions import Logger, pretty_print2
 from utils.functions import pretty_print, sort_missions, get_enc_time, show_progress, save_users
 
 from urllib.parse import urlencode
+
 
 class Chaoxing:
 
@@ -35,7 +36,7 @@ class Chaoxing:
         self.session = requests.session()
         self.session.headers = {
             'User-Agent':
-            f'Dalvik/2.1.0 (Linux; U; Android {random.randint(9, 12)}; MI{random.randint(10, 12)} Build/SKQ1.210216.001) (device:MI{random.randint(10, 12)}) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_5.1.4_android_phone_614_74 (@Kalimdor)_{secrets.token_hex(16)}',
+                f'Dalvik/2.1.0 (Linux; U; Android {random.randint(9, 12)}; MI{random.randint(10, 12)} Build/SKQ1.210216.001) (device:MI{random.randint(10, 12)}) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_5.1.4_android_phone_614_74 (@Kalimdor)_{secrets.token_hex(16)}',
             'X-Requested-With': 'com.chaoxing.mobile'
         }
 
@@ -44,7 +45,7 @@ class Chaoxing:
         self.session = requests.session()
         self.session.headers = {
             'User-Agent':
-            f'Dalvik/2.1.0 (Linux; U; Android {random.randint(9, 12)}; MI{random.randint(10, 12)} Build/SKQ1.210216.001) (device:MI{random.randint(10, 12)}) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_5.1.4_android_phone_614_74 (@Kalimdor)_{secrets.token_hex(16)}',
+                f'Dalvik/2.1.0 (Linux; U; Android {random.randint(9, 12)}; MI{random.randint(10, 12)} Build/SKQ1.210216.001) (device:MI{random.randint(10, 12)}) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_5.1.4_android_phone_614_74 (@Kalimdor)_{secrets.token_hex(16)}',
             'X-Requested-With': 'com.chaoxing.mobile'
         }
         self.login()
@@ -145,12 +146,12 @@ class Chaoxing:
         self.logger.debug("---selected_course info end---")
         return True
 
-    def get_selected_course_data(self): 
+    def get_selected_course_data(self):
         url = 'https://mooc1-api.chaoxing.com/gas/clazz'
         params = {
             'id': self.selected_course["key"],
             'fields':
-            'id,bbsid,classscore,isstart,allowdownload,chatid,name,state,isthirdaq,isfiled,information,discuss,visiblescore,begindate,coursesetting.fields(id,courseid,hiddencoursecover,hiddenwrongset,coursefacecheck),course.fields(id,name,infocontent,objectid,app,bulletformat,mappingcourseid,imageurl,teacherfactor,knowledge.fields(id,name,indexOrder,parentnodeid,status,layer,label,begintime,endtime,attachment.fields(id,type,objectid,extension).type(video)))',
+                'id,bbsid,classscore,isstart,allowdownload,chatid,name,state,isthirdaq,isfiled,information,discuss,visiblescore,begindate,coursesetting.fields(id,courseid,hiddencoursecover,hiddenwrongset,coursefacecheck),course.fields(id,name,infocontent,objectid,app,bulletformat,mappingcourseid,imageurl,teacherfactor,knowledge.fields(id,name,indexOrder,parentnodeid,status,layer,label,begintime,endtime,attachment.fields(id,type,objectid,extension).type(video)))',
             'view': 'json'
         }
         self.missions = sort_missions(
@@ -165,7 +166,7 @@ class Chaoxing:
             'id': mission_id,
             'courseid': course_id,
             'fields':
-            'id,parentnodeid,indexorder,label,layer,name,begintime,createtime,lastmodifytime,status,jobUnfinishedCount,clickcount,openlock,card.fields(id,knowledgeid,title,knowledgeTitile,description,cardorder).contentcard(all)',
+                'id,parentnodeid,indexorder,label,layer,name,begintime,createtime,lastmodifytime,status,jobUnfinishedCount,clickcount,openlock,card.fields(id,knowledgeid,title,knowledgeTitile,description,cardorder).contentcard(all)',
             'view': 'json',
             'token': "4faa8662c59590c6f43ae9fe5b002b42",
             '_time': enc[0],
@@ -173,31 +174,66 @@ class Chaoxing:
         }
         return self.session.get(url, params=params).json()
 
-    def get_knowledge(self, clazzid, courseid, knowledgeid, cpi):
+    def get_knowledge(self, clazzid, courseid, knowledgeid, num):
+        url = 'https://mooc1-api.chaoxing.com/knowledge/cards'
+        params = {
+            'clazzid': clazzid,
+            'courseid': courseid,
+            'knowledgeid': knowledgeid,
+            'num': num,
+            'isPhone': 1,
+            'control': True,
+        }
+        return self.session.get(url, params=params).text
+
+    def get_cards(self, clazzid, courseid, knowledgeid, cpi, ut):
         url = 'https://mooc1-api.chaoxing.com/knowledge/cards'
         params = {
             'clazzid': clazzid,
             'courseid': courseid,
             'knowledgeid': knowledgeid,
             'num': 0,
-            # 'isPhone': 1,
-            'ut':'s',
-            'cpi':cpi,
-            'v':'20160407-1'
-            # 'control': True,
+            'ut': ut,
+            'cpi': cpi,
+            'v': '20160407-1',
+            'mooc2': 0
         }
-        return self.session.get(url, params=params).text
+        response = self.session.get(url, params=params)
+        # self.logger.info(response.H)
+        # self.logger.debug(response.text)
+        if ut == 's':
+            if res := re.search(r'mArg =({\"hiddenConfig\":false,\"attachments\":.*})', str(response.text)):
+                attachments = json.loads(res[1])
+                self.logger.debug("---card(get_mission_new) info begin---")
+                self.logger.debug(attachments)
+                self.logger.debug("---card(get_mission_new) info end---")
+                return attachments
+        elif ut == '':
+            if response.status_code == '200':
+                # if res := re.search(r'mArg = \$mArg', str(response.text)):
+                #     attachments = json.loads(res[1])
+                #     self.logger.debug("---card(get_mission_new) info begin---")
+                #     self.logger.debug(attachments)
+                #     self.logger.debug("---card(get_mission_new) info end---")
+                #     self.logger.info('card success')
+                return True
+            else:
+                return False
 
-    def get_studyajax(self,courseid,clazzid,chapterid,cpi):
-        url='https://mooc1.chaoxing.com/mycourse/studentstudyAjax'
+        # return self.session.get(url, params=params).text
+
+    def get_studyajax(self, clazzid, courseid, chapterid, cpi):
+        url = 'https://mooc1.chaoxing.com/mycourse/studentstudyAjax'
         params = {
-            'courseId':courseid,
-            'clazzid':clazzid,
-            'chapterId':chapterid,
-            'cpi':cpi
+            'courseId': courseid,
+            'clazzid': clazzid,
+            'chapterId': chapterid,
+            'cpi': cpi,
+            'verificationcode': ''
         }
-        text = self.session.post(url,data=urlencode(params),headers={'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}).text
-        if res := re.search(r'scrolling=\"no\"\ src=\"(\/knowledge\/cards\?.*20160407\-1)\"', str(text)):
+        text = self.session.post(url, data=urlencode(params),
+                                 headers={'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}).text
+        if res := re.search(r'scrolling=\"no\" src=\"(/knowledge/cards\?.*mooc2=0)\"', str(text)):
             self.logger.debug("---studyajax info begin---")
             self.logger.debug(res[1])
             self.logger.debug("---studyajax info end---")
@@ -214,12 +250,18 @@ class Chaoxing:
             self.logger.debug("---attachments info begin---")
             self.logger.debug(attachments)
             self.logger.debug("---attachments info end---")
-        elif res := re.search(r'mArg = ({\"attachments\":.*})', text):
-            attachments = json.loads(res[1])
-            self.logger.debug("---attachments info begin---")
-            self.logger.debug(attachments)
-            self.logger.debug("---attachments info end---")
-        return attachments
+            return attachments
+
+    def select_mission(self):
+        pretty_print2(self.missions)
+        index = int(input("请输入您要学习的任务点序号，回车从第一个开始："))
+        self.selected_mission_num = index - 1
+        self.selected_mission = self.missions[index - 1]
+        self.logger.debug("---selected_mission info begin---")
+        self.logger.debug(self.selected_mission)
+        self.logger.debug(self.selected_mission_num)
+        self.logger.debug("---selected_mission info end---")
+        return True
 
     def get_d_token(self, objectid, fid):
         url = 'https://mooc1-api.chaoxing.com/ananas/status/{}'.format(
@@ -270,36 +312,36 @@ class Chaoxing:
         # print(url)
         params = {
             'otherInfo':
-            otherInfo,
+                otherInfo,
             'playingTime':
-            str(playingTime),
+                str(playingTime),
             'duration':
-            str(duration),
+                str(duration),
             # 'akid': None,
             'jobid':
-            jobid,
+                jobid,
             'clipTime':
-            '0_{}'.format(duration),
+                '0_{}'.format(duration),
             'clazzId':
-            str(clazzId),
+                str(clazzId),
             'objectId':
-            objectId,
+                objectId,
             'userid':
-            userid,
+                userid,
             'isdrag':
-            '0',
+                '0',
             'enc':
-            self.get_enc(clazzId, jobid, objectId, playingTime, duration,
-                         userid),
+                self.get_enc(clazzId, jobid, objectId, playingTime, duration,
+                             userid),
             'rt':
-            '0.9',  # 'rt': '1.0',  ??
+                '0.9',  # 'rt': '1.0',  ??
             # 'dtype': 'Video', 音频文件为Audio
             'dtype':
-            dtype,
+                dtype,
             'view':
-            'pc',
+                'pc',
             '_t':
-            str(int(round(time.time() * 1000)))
+                str(int(round(time.time() * 1000)))
         }
         mylist = []
         for key in params.items():
@@ -346,8 +388,8 @@ class Chaoxing:
             playingTime += 1 * self.speed
             sec += 1 * self.speed
             time.sleep(1)
-    
-    def pass_document(self, jtoken, clazzid, jobid, courseid, knowledgeid):#暂时未使用，可能不可用或无用
+
+    def pass_document(self, jtoken, clazzid, jobid, courseid, knowledgeid):  # 暂时未使用，可能不可用或无用
         url = 'http://mooc1.chaoxing.com/ananas/job/document'
         params = {
             'jobid': jobid,

@@ -2,6 +2,7 @@ import random
 import time
 import argparse
 
+import utils.functions
 import utils.functions as ft
 from api.chaoxing import Chaoxing
 
@@ -12,12 +13,15 @@ def do_work(chaoxingAPI):
     logger.info("已选课程："+str(chaoxingAPI.selected_course['content']['course']['data'][0]['name']))
     logger.info("开始获取所有章节")
     chaoxingAPI.get_selected_course_data()  # 读取所有章节
+    if chaoxingAPI.select_mission():
+        mission_index = chaoxingAPI.selected_mission_num
+    else:
+        mission_index = 0
     mission_num = len(chaoxingAPI.missions)
-    mission_index = 0
     while mission_index < mission_num:
-        if chaoxingAPI.missions[mission_index]['status'] == 'open':
-            mission_index += 1
-            continue
+        # if chaoxingAPI.missions[mission_index]['status'] == 'open':#有的课程第一级章节需要进入才会解锁第二级任务点，屏蔽处理
+        #     mission_index += 1
+        #     continue
         mission = chaoxingAPI.missions[mission_index]
         
         logger.debug("开始读取章节信息")
@@ -37,23 +41,21 @@ def do_work(chaoxingAPI):
                 input("请截图并携带日志提交Issue反馈")
         re_login_try = 0
         tabs = len(knowledge_raw['data'][0]['card']['data'])
+        chaoxing.get_studyajax(
+            chaoxingAPI.selected_course['key'],
+            chaoxingAPI.selected_course['content']['course']['data'][0]['id'],
+            chaoxingAPI.missions[mission_index - 1]['id'],
+            0
+        )
         for tab_index in range(tabs):
             # print("开始读取标签信息")
 
             print('\n开始读取：' + chaoxingAPI.missions[mission_index]['label'] +' ' + chaoxingAPI.missions[mission_index]['name'])
-            if not chaoxing.get_studyajax(
-                chaoxingAPI.selected_course['content']['course']['data'][0]['id'],
-                chaoxingAPI.selected_course['key'],
-                chaoxingAPI.missions[mission_index]['id'],
-                chaoxingAPI.selected_course['content']['cpi']
-                ):
-                continue
             knowledge_card_text = chaoxingAPI.get_knowledge(
                 chaoxingAPI.selected_course['key'],
                 chaoxingAPI.selected_course['content']['course']['data'][0]['id'],
                 mission["id"],
-                # tab_index
-                chaoxingAPI.selected_course['cpi']
+                tab_index
             )
             # print('课程资源如下')
             # print(knowledge_card_text)
@@ -63,10 +65,19 @@ def do_work(chaoxingAPI):
             if not attachments.get('attachments'):
                 continue
                 # chaoxingAPI.pass_reade(attachments['ktoken'],attachments['clazzId'],attachments['aId'] ,chaoxingAPI.selected_course['content']['course']['data'][0]['id'])
+            print('---------------------------------------------------')
+            print(f'\n当前章节：{mission["label"]}:{mission["name"]}')
+            utils.functions.send_notice('','')#发送通知
             for attachment in attachments['attachments']:
                 # if attachment.get('type') != 'video': # 非视频任务跳过
                 #     print("跳过非视频任务")
                 #     continue
+                print(attachment.get('type'))
+                try:
+                    print(attachment['property']['type'])
+                except IndexError:
+                    pass
+                print(attachment['property']['module'])
                 if attachment.get('type') == 'video' or attachment.get('type') == 'audio': # 视频/音频任务处理
                     if attachment.get('property', False):
                         name = attachment['property']['name']
@@ -128,52 +139,32 @@ def do_work(chaoxingAPI):
                     )
                     ft.pause(10, 13)
                     # chaoxing.speed = set_speed  # 预防ERR
-                elif attachment.get('type') == 'document': # 文档处理
+                elif attachment['property']['module'] == 'work':  # 测验
+                    chaoxing.get_cards(
+                        chaoxingAPI.selected_course['key'],
+                        chaoxingAPI.selected_course['content']['course']['data'][0]['id'],
+                        chaoxingAPI.missions[mission_index]['id'],
+                        chaoxingAPI.selected_course['content']['cpi'],
+                        's'
+                    )
+                    print("测验，等待5秒后自动跳过,如跳过失败请手动答题后重新刷课")
+                    time.sleep(5)
+                elif attachment.get('type') == 'document':  # 文档处理
                     if attachment.get('property', False):
                         name = attachment['property']['name']
                     else:
                         name = attachment['objectId']
                     print(f"\n当前文档：{name}")
-                    print(f"无法获取当前文档完成情况，已重新完成")
-                    # jobid = None
-                    # if "jobid" in attachments:
-                    #     jobid = attachments["jobid"]
-                    # else:
-                    #     if "jobid" in attachment:
-                    #         jobid = attachment["jobid"]
-                    #     elif attachment.get('property', False):
-                    #         if "jobid" in attachment['property']:
-                    #             jobid = attachment['property']['jobid']
-                    #         else:
-                    #             if "'_jobid'" in attachment['property']:
-                    #                 jobid = attachment['property']['_jobid']
-                    # if not jobid:
-                    #     print("未找到jobid，已跳过当前任务点")
-                    #     continue
-                    # print('等待3秒后完成文档任务')
-                    
-                    # if chaoxingAPI.pass_document(
-                    #     attachment['jtoken'],
-                    #     attachments['defaults']['clazzId'],
-                    #     jobid,
-                    #     attachments['defaults']['courseid'],
-                    #     attachments['defaults']['knowledgeid']
-                    # ):
-                    #     print('当前文档任务已完成')
-                    # else:
-                    #     print('当前文档任务失败：' + name)
-                    # time.sleep(3)
-                elif attachment.get('type') == 'workid':
-                    if attachments['knowledgename']:
-                        name = attachments['knowledgename']
-                        print(name + ' 是一个测验，已跳过，请手动完成')
-                    print('是一个测验，已跳过，请手动完成')
-                    continue
-                elif not attachment.get('type'):
-                    # print(attachments['knowledgename'])
-                    print('阅读任务已完成，等待1秒后继续')
-                    # time.sleep(1)
-        mission_index += 1
+                    chaoxing.get_cards(
+                        chaoxingAPI.selected_course['key'],
+                        chaoxingAPI.selected_course['content']['course']['data'][0]['id'],
+                        chaoxingAPI.missions[mission_index - 1]['id'],
+                        '',
+                        ''
+                    )
+                    print("文档任务，已完成，等待5秒")
+                    time.sleep(5)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='chaoxing-xuexitong')  # 命令行传参
